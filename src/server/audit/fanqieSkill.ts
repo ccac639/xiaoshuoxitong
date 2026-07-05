@@ -348,5 +348,5 @@ export default {
   detectAiTone,
   auditLogic,
   checkPlatformRules,
-  trackHooks,
+  trackHooksSimple, // 修正：导出 trackHooksSimple（不是 trackHooks）
 };

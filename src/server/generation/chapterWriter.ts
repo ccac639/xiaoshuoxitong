@@ -13,9 +13,9 @@
  */
 
 import { WorldSnapshot, WorldEvent, SkillExecution } from '@/types';
-import { EventFlowTracker } from './eventFlowTracker';
-import { WorldStateManager } from '../world/stateManager';
-import { SkillLibrary } from '../skills/skillLibrary';
+import { EventFlowTracker } from '@/server/execution/eventFlowTracker';
+import { WorldStateManager, worldStateManager } from '../world/stateManager';
+import { SkillLibrary, skillLibrary } from '../skills/skillLibrary';
 
 export interface ChapterGenerationInput {
   chapterNumber: number;

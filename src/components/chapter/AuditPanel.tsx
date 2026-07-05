@@ -196,7 +196,11 @@ export default function AuditPanel({
         {auditResult.status === 'fix' && (
           <>
             <button
-              onClick={() => onRequestFix(auditResult.suggestions)}
+              onClick={() => onRequestFix([
+                ...auditResult.details.aiToneIssues.map(i => i.suggestion),
+                ...auditResult.details.logicIssues.map(i => i.suggestion),
+                ...auditResult.details.platformIssues.map(i => i.suggestion),
+              ].filter(Boolean) as string[])}
               disabled={isLoading}
               className="flex-1 btn-secondary flex items-center justify-center gap-2"
             >
@@ -217,7 +221,10 @@ export default function AuditPanel({
         {auditResult.status === 'reject' && (
           <>
             <button
-              onClick={() => onRequestFix(auditResult.suggestions)}
+              onClick={() => onRequestFix([
+                ...auditResult.details.aiToneIssues.map(i => i.suggestion),
+                ...auditResult.details.logicIssues.map(i => i.suggestion),
+              ].filter(Boolean) as string[])}
               disabled={isLoading}
               className="flex-1 btn-primary flex items-center justify-center gap-2"
             >

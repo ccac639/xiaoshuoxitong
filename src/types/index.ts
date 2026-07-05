@@ -98,6 +98,7 @@ export interface SkillExecution {
   skillId: string;
   input: Record<string, any>;
   output: Record<string, any>;
+  executionTime?: number; // 执行时间（毫秒）
   timestamp: number;
   success: boolean;
   error?: string;

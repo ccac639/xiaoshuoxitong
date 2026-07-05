@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { WorldSnapshot, WorldEvent } from '@/types';
+import { MOCK_SNAPSHOT } from '@/lib/mockWorldState';
 
 /**
  * POST /api/generate-chapter
@@ -18,6 +19,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { chapterNumber, worldState } = body;
+    
+    // 使用默认世界状态（如果未提供）
+    const baseWorldState = worldState && Object.keys(worldState).length > 0 ? worldState : MOCK_SNAPSHOT;
 
     // 模拟生成延迟
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -52,14 +56,14 @@ export async function POST(request: NextRequest) {
 
     // 2. 更新世界状态（模拟）
     const updatedWorldState: WorldSnapshot = {
-      ...worldState,
+      ...baseWorldState,
       id: `snapshot-chapter-${chapterNumber}`,
       chapterNumber,
       timestamp: Date.now(),
       characters: {
-        ...worldState.characters,
+        ...baseWorldState.characters,
         'char-1': {
-          ...worldState.characters['char-1'],
+          ...baseWorldState.characters['char-1'],
           hp: 65,
           emotion: '愤怒',
         },
@@ -78,7 +82,7 @@ export async function POST(request: NextRequest) {
         content,
         wordCount: content.length,
         events,
-        worldStateBefore: worldState,
+        worldStateBefore: baseWorldState,
         worldStateAfter: updatedWorldState,
         metadata: {
           generationTime: 2000,
@@ -106,7 +110,7 @@ function generateChapterContent(
   events: WorldEvent[],
   worldState: WorldSnapshot
 ): string {
-  const character = worldState.characters['char-1'];
+  const character = worldState.characters?.['char-1'] || { name: '林夜' };
   const characterName = character?.name || '林夜';
 
   return `

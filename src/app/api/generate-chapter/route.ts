@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { WorldSnapshot, WorldEvent } from '@/types';
+import { WorldSnapshot, WorldEvent, ChapterGenerationOutput } from '@/types';
 import { MOCK_SNAPSHOT } from '@/lib/mockWorldState';
 import { auditChapter, AuditResult } from '@/server/audit/fanqieSkill';
+import { storyMemoryManager } from '@/server/memory/storyMemory';
 
 /**
  * POST /api/generate-chapter
@@ -18,10 +19,16 @@ import { auditChapter, AuditResult } from '@/server/audit/fanqieSkill';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { chapterNumber, worldState } = body;
+    const { chapterNumber, worldState, storyId = 'default' } = body;
     
     // 使用默认世界状态（如果未提供）
     const baseWorldState = worldState && Object.keys(worldState).length > 0 ? worldState : MOCK_SNAPSHOT;
+    
+    // 【Story Memory 集成】步骤 0：获取上一章总结（用于保持连贯性）
+    const previousSummary = storyMemoryManager.getPreviousChapterSummary(storyId);
+    if (previousSummary) {
+      console.log(`[Story Memory] 上一章总结：\n${previousSummary}`);
+    }
     
     // 模拟生成延迟
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -75,7 +82,34 @@ export async function POST(request: NextRequest) {
       updatedWorldState = baseWorldState;
     }
     
-    // 5. 构建响应
+    // 5. 【Story Memory 集成】保存章节到记忆（即使审计未通过也保存，用于分析）
+    try {
+      const chapterData: ChapterGenerationOutput = {
+        chapterNumber,
+        title: `第 ${chapterNumber} 章`,
+        content,
+        wordCount: content.length,
+        generationTime: 2000,
+        eventFlow: { steps: events },
+        skillExecutions: [],
+        worldStateBefore: baseWorldState,
+        worldStateAfter: shouldUpdateWorldState ? updatedWorldState! : baseWorldState,
+        metadata: {
+          model: 'gpt-4',
+          tokenUsage: 2500,
+          cost: 0.075,
+          auditTime: 500,
+          auditScore: auditResult.score,
+        },
+      };
+      
+      const savedRecord = storyMemoryManager.saveChapter(storyId, chapterData);
+      console.log(`[Story Memory] 章节已保存：第${chapterNumber}章（${savedRecord.wordCount}字）`);
+    } catch (memoryError: any) {
+      console.error('[Story Memory] 保存失败：', memoryError.message);
+    }
+    
+    // 6. 构建响应
     const response = {
       success: true,
       data: {
@@ -88,6 +122,10 @@ export async function POST(request: NextRequest) {
         worldStateAfter: shouldUpdateWorldState ? updatedWorldState : null,
         audit: auditResult, // 🔥 审计结果
         shouldUpdateWorldState, // 是否应该更新世界状态
+        storyMemory: {
+          previousSummary,
+          overallSummary: storyMemoryManager.getStoryContext(storyId).overallSummary,
+        },
         metadata: {
           generationTime: 2000,
           model: 'gpt-4',

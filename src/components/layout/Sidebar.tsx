@@ -11,6 +11,7 @@ import {
   Globe,
   FileText,
   Library,
+  BrainCircuit, // 新增：Story Memory 图标
 } from 'lucide-react';
 
 /**
@@ -22,9 +23,10 @@ export function Sidebar() {
   const menuItems = [
     { id: 'dashboard', label: '控制台', icon: Home, path: '/' },
     { id: 'novel', label: '小说管理', icon: BookOpen, path: '/novel' },
-    { id: 'chapter', label: '章节生成', icon: FileText, path: '/chapter' }, // 新增
+    { id: 'chapter', label: '章节生成', icon: FileText, path: '/chapter' },
     { id: 'skill-lab', label: 'Skill 实验室', icon: FlaskConical, path: '/skill-lab' },
     { id: 'memory', label: '经验查看器', icon: Brain, path: '/memory' },
+    { id: 'story-memory', label: '故事记忆', icon: BrainCircuit, path: '/story-memory' }, // 新增
     { id: 'agent-trace', label: '决策追踪', icon: Network, path: '/agent-trace' },
     { id: 'event-flow', label: '事件流', icon: GitBranch, path: '/event-flow' },
     { id: 'world-state', label: '世界状态', icon: Globe, path: '/world-state' },

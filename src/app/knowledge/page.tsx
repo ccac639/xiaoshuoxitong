@@ -7,11 +7,12 @@
  * 3. 番茄小说规则
  * 4. 伏笔管理（Truth Files）
  * 5. AI写作去AI味指南
+ * 6. 上传小说 JSON（起点/番茄畅销书）
  */
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Library,
   Globe,
@@ -26,8 +27,11 @@ import {
   Clock,
   ChevronRight,
   Filter,
-  Download,
   Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -36,225 +40,159 @@ import { cn } from '@/lib/utils';
 interface KnowledgeItem {
   id: string;
   title: string;
-  category: KnowledgeCategory;
+  type: KnowledgeType;
   content: string;
   tags: string[];
   createdAt: number;
   updatedAt: number;
+  metadata?: {
+    author?: string;
+    source?: string;
+    wordCount?: number;
+    category?: string;
+    chapterCount?: number;
+    [key: string]: any;
+  };
 }
 
-type KnowledgeCategory = 
-  | 'world-setting'   // 世界观设定
-  | 'character'       // 角色档案
-  | 'faction'         // 势力组织
-  | 'writing-rule'    // 写作规则（番茄规则等）
-  | 'template'        // 写作模板
-  | 'foreshadowing'   // 伏笔记录
-  | 'anti-ai';        // 去AI味指南
-
-// ==================== 模拟数据 ====================
-
-const MOCK_KNOWLEDGE: KnowledgeItem[] = [
-  // 世界观设定
-  {
-    id: 'kw-1',
-    title: '北境世界概览',
-    category: 'world-setting',
-    content: `# 北境世界
-
-**地理环境：**
-- 北境城：位于大陆最北方，终年寒冷
-- 血影宗总部：位于黑风山脉深处
-- 城主府：北境城的权力中心
-
-**势力格局：**
-- 北境城：由城主韩靖统治
-- 血影宗：暗黑势力，修炼血术
-- 正道联盟：对抗血影宗的联合力量
-
-**灵力体系：**
-- 灵力等级：1-9阶
-- 特殊功法：血影宗的血术、正道的剑诀`,
-    tags: ['世界观', '地理', '势力'],
-    createdAt: Date.now() - 86400000,
-    updatedAt: Date.now() - 3600000,
-  },
-  
-  // 角色档案
-  {
-    id: 'kw-2',
-    title: '林夜·角色档案',
-    category: 'character',
-    content: `# 林夜
-
-**基本信息：**
-- 年龄：22岁
-- 身份：北境城的守护者
-- 性格：沉稳、有责任感
-
-**能力特点：**
-- 攻击力：85
-- 防御力：60
-- 灵力：70
-
-**成长轨迹：**
-1. 初入北境城 → 2. 发现血影宗阴谋 → 3. 成为守护者 → 4. 对抗墨煞长老
-
-**重要关系：**
-- 苏清歌：盟友/暧昧关系
-- 铁塔：并肩作战的战友
-- 韩靖：尚未正式会面的城主`,
-    tags: ['主角', '角色', '档案'],
-    createdAt: Date.now() - 86400000 * 2,
-    updatedAt: Date.now() - 7200000,
-  },
-  
-  // 写作规则
-  {
-    id: 'kw-3',
-    title: '番茄小说平台规则',
-    category: 'writing-rule',
-    content: `# 番茄小说平台规则（核心）
-
-## ✅ 必须遵守
-
-### 1. 主角出场规则
-- **300字内必须出现主角**
-- 让读者快速代入主角视角
-- 避免"先写环境，后写人"
-
-### 2. 钩子规则（1000字内）
-- 必须制造冲突或悬念
-- 可用关键词：突然、没想到、竟、原来
-- 目的：让读者继续阅读
-
-### 3. 字数建议
-- 单章：4000-5000字最佳
-- 过短：<3000字（读者不满）
-- 过长：>6000字（建议拆分）
-
-## ❌ 禁止事项
-- 涉政内容
-- 违法违规描写
-- 低俗擦边内容`,
-    tags: ['番茄', '平台规则', '写作'],
-    createdAt: Date.now() - 86400000 * 3,
-    updatedAt: Date.now() - 86400000,
-  },
-  
-  // 伏笔记录
-  {
-    id: 'kw-4',
-    title: '伏笔追踪表',
-    category: 'foreshadowing',
-    content: `# 伏笔追踪（Truth Files）
-
-## 待解决伏笔
-
-| 伏笔ID | 描述 | 设置章节 | 关键词 | 状态 |
-|--------|------|----------|--------|------|
-| FH-001 | 林夜的身世之谜 | 第5章 | "孤儿"、"神秘玉佩" | ⏳ 未解决 |
-| FH-002 | 苏清歌的真实身份 | 第8章 | "隐藏实力" | ⏳ 未解决 |
-| FH-003 | 血影宗的最终目的 | 第10章 | "大计划" | ⏳ 未解决 |
-
-## 已解决伏笔
-
-| 伏笔ID | 描述 | 设置章节 | 解决章节 |
-|--------|------|----------|----------|
-| FH-000 | 城门的异常关闭 | 第1章 | 第3章 |
-
-## 新增伏笔
-- **第12章**：墨煞提到"那个人"（可能是幕后黑手）`,
-    tags: ['伏笔', '剧情', '追踪'],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  
-  // 去AI味指南
-  {
-    id: 'kw-5',
-    title: 'AI写作去AI味完整指南',
-    category: 'anti-ai',
-    content: `# 去AI味写作指南
-
-## 🚫 禁止使用的套路词
-
-### 连接词滥用
-- ❌ 然而、事实上、毫无疑问、显而易见
-- ❌ 总而言之、换言之、由此可见
-- ❌ 尽管如此、与此同时、无独有偶
-
-### 空洞表达
-- ❌ 一种说不清道不明的感觉
-- ❌ 心中涌起一股莫名的情绪
-- ❌ 眼神中闪过一丝复杂的神色
-- ❌ 空气中弥漫着一种诡异的安静
-- ❌ 时间仿佛在这一刻静止了
-
-### 排比句式
-- ❌ 他...，他...，他...（连续3个以上）
-- ❌ 她...，她...，她...
-
-### AI典型句式
-- ❌ 不得不承认...
-- ❌ 从某种程度上来说...
-- ❌ 在某种意义上...
-- ❌ 可以说...
-- ❌ 值得一提的是...
-
-## ✅ 替代方案
-
-### 直接叙述
-- ✅ 直接描述动作和心理
-- ✅ 用具体细节替代泛泛而谈
-- ✅ 打破句式重复，增加变化
-
-### 示例对比
-**AI版：**
-> 他不得不承认，从某种程度上来说，心中涌起一股莫名的情绪。
-
-**人话版：**
-> 他握紧了拳头。这感觉不对劲。
-
-## 🎯 核心原则
-1. **少用连接词**，直接说
-2. **具体化**，不要泛泛而谈
-3. **打破模式**，避免排比
-4. **口语化**，像真人在说话`,
-    tags: ['AI味', '写作', '去AI化', '指南'],
-    createdAt: Date.now() - 86400000 * 5,
-    updatedAt: Date.now() - 86400000 * 2,
-  },
-];
+type KnowledgeType = 
+  | 'worldview'      // 世界观设定
+  | 'character'      // 角色档案
+  | 'plot'           // 剧情模板
+  | 'rule'           // 写作规则
+  | 'foreshadow'     // 伏笔记录
+  | 'guide'          // 写作指南
+  | 'novel';         // 小说数据
 
 // ==================== 分类配置 ====================
 
-const CATEGORY_CONFIG = {
-  'world-setting': { label: '世界观设定', icon: Globe, color: 'purple' },
-  'character': { label: '角色档案', icon: Users, color: 'blue' },
-  'faction': { label: '势力组织', icon: BookOpen, color: 'green' },
-  'writing-rule': { label: '写作规则', icon: FileText, color: 'orange' },
-  'template': { label: '写作模板', icon: BookOpen, color: 'pink' },
-  'foreshadowing': { label: '伏笔记录', icon: Tag, color: 'red' },
-  'anti-ai': { label: '去AI味指南', icon: FileText, color: 'cyan' },
+const TYPE_CONFIG = {
+  worldview: { label: '世界观', icon: Globe, color: 'purple' },
+  character: { label: '角色', icon: Users, color: 'blue' },
+  plot: { label: '剧情', icon: BookOpen, color: 'green' },
+  rule: { label: '规则', icon: FileText, color: 'orange' },
+  foreshadow: { label: '伏笔', icon: Tag, color: 'red' },
+  guide: { label: '指南', icon: FileText, color: 'cyan' },
+  novel: { label: '小说', icon: Library, color: 'pink' },
 };
+
+// ==================== API 函数 ====================
+
+async function fetchKnowledgeItems(type?: string, query?: string): Promise<KnowledgeItem[]> {
+  const params = new URLSearchParams();
+  if (type && type !== 'all') params.append('type', type);
+  if (query) params.append('q', query);
+
+  const response = await fetch(`/api/knowledge?${params.toString()}`);
+  if (!response.ok) throw new Error('获取知识库失败');
+  const data = await response.json();
+  return data.data || [];
+}
+
+async function deleteKnowledgeItem(id: string): Promise<void> {
+  const response = await fetch(`/api/knowledge?id=${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('删除失败');
+}
+
+async function uploadNovel(file: File, platform: string): Promise<any> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('platform', platform);
+
+  const response = await fetch('/api/knowledge/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || '上传失败');
+  }
+
+  return await response.json();
+}
 
 // ==================== 主组件 ====================
 
 export default function KnowledgePage() {
-  const [activeTab, setActiveTab] = useState<KnowledgeCategory | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<KnowledgeType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ success: boolean; message: string } | null>(null);
 
-  // 过滤知识项
-  const filteredKnowledge = MOCK_KNOWLEDGE.filter(item => {
-    const matchCategory = activeTab === 'all' || item.category === activeTab;
+  // 加载知识库数据
+  const loadKnowledge = useCallback(async () => {
+    try {
+      setLoading(true);
+      const items = await fetchKnowledgeItems(
+        activeTab === 'all' ? undefined : activeTab,
+        searchQuery || undefined
+      );
+      setKnowledgeItems(items);
+    } catch (error) {
+      console.error('加载失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, searchQuery]);
+
+  useEffect(() => {
+    loadKnowledge();
+  }, [loadKnowledge]);
+
+  // 过滤知识项（前端再过滤一次，确保实时性）
+  const filteredKnowledge = knowledgeItems.filter(item => {
+    const matchCategory = activeTab === 'all' || item.type === activeTab;
     const matchSearch = searchQuery === '' || 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchCategory && matchSearch;
   });
+
+  // 处理文件上传
+  const handleUpload = async (file: File, platform: string) => {
+    try {
+      setUploading(true);
+      setUploadStatus(null);
+
+      const result = await uploadNovel(file, platform);
+      setUploadStatus({ success: true, message: `成功上传《${result.data.title}》` });
+      
+      // 重新加载列表
+      await loadKnowledge();
+      
+      // 3秒后关闭弹窗
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setUploadStatus(null);
+      }, 3000);
+    } catch (error: any) {
+      setUploadStatus({ success: false, message: error.message || '上传失败' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // 处理删除
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定要删除这条知识吗？')) return;
+
+    try {
+      await deleteKnowledgeItem(id);
+      await loadKnowledge();
+      if (selectedItem?.id === id) {
+        setSelectedItem(null);
+        setViewMode('list');
+      }
+    } catch (error) {
+      alert('删除失败');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-950 text-gray-100">
@@ -265,9 +203,12 @@ export default function KnowledgePage() {
             <Library className="w-7 h-7 text-purple-400" />
             知识库
           </h1>
-          <button className="btn-primary flex items-center gap-2">
-            <Plus size={18} />
-            新建条目
+          <button 
+            onClick={() => setShowUploadModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Upload size={18} />
+            上传小说
           </button>
         </div>
         
@@ -303,12 +244,12 @@ export default function KnowledgePage() {
                 active={activeTab === 'all'}
                 onClick={() => setActiveTab('all')}
               />
-              {(Object.entries(CATEGORY_CONFIG) as [KnowledgeCategory, typeof CATEGORY_CONFIG[keyof typeof CATEGORY_CONFIG]][]).map(([key, config]) => (
+              {(Object.entries(TYPE_CONFIG) as [KnowledgeType, typeof TYPE_CONFIG[keyof typeof TYPE_CONFIG]][]).map(([key, config]) => (
                 <CategoryButton
                   key={key}
                   label={config.label}
                   active={activeTab === key}
-                  onClick={() => setActiveTab(key as KnowledgeCategory)}
+                  onClick={() => setActiveTab(key as KnowledgeType)}
                   color={config.color}
                   icon={config.icon}
                 />
@@ -318,7 +259,12 @@ export default function KnowledgePage() {
 
           {/* 知识列表 */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {filteredKnowledge.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-12 text-gray-500">
+                <Loader2 size={48} className="mx-auto mb-4 animate-spin" />
+                <p>加载中...</p>
+              </div>
+            ) : filteredKnowledge.length > 0 ? (
               filteredKnowledge.map(item => (
                 <KnowledgeCard
                   key={item.id}
@@ -346,11 +292,25 @@ export default function KnowledgePage() {
           <div className="flex-1 overflow-y-auto p-6">
             <KnowledgeDetail 
               item={selectedItem} 
-              onBack={() => setViewMode('list')} 
+              onBack={() => setViewMode('list')}
+              onDelete={() => handleDelete(selectedItem.id)}
             />
           </div>
         )}
       </div>
+
+      {/* 上传弹窗 */}
+      {showUploadModal && (
+        <UploadModal
+          onClose={() => {
+            setShowUploadModal(false);
+            setUploadStatus(null);
+          }}
+          onUpload={handleUpload}
+          uploading={uploading}
+          uploadStatus={uploadStatus}
+        />
+      )}
     </div>
   );
 }
@@ -371,7 +331,7 @@ function CategoryButton({
   color?: string;
   icon?: any;
 }) {
-  const colorClasses = {
+  const colorMap: Record<string, string> = {
     purple: active ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-purple-500/30',
     blue: active ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-blue-500/30',
     green: active ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-green-500/30',
@@ -386,7 +346,7 @@ function CategoryButton({
       onClick={onClick}
       className={cn(
         "px-3 py-1.5 rounded-lg border text-xs font-medium transition-all flex items-center gap-1.5",
-        active ? (colorClasses[color as keyof typeof colorClasses] || colorClasses.purple) : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-cyan-500/30'
+        colorMap[color || 'purple']
       )}
     >
       {Icon && <Icon size={14} />}
@@ -405,8 +365,18 @@ function KnowledgeCard({
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const config = CATEGORY_CONFIG[item.category];
+  const config = TYPE_CONFIG[item.type];
   const Icon = config.icon;
+
+  const colorClasses: Record<string, string> = {
+    purple: 'text-purple-400',
+    blue: 'text-blue-400',
+    green: 'text-green-400',
+    orange: 'text-orange-400',
+    pink: 'text-pink-400',
+    red: 'text-red-400',
+    cyan: 'text-cyan-400',
+  };
 
   return (
     <button
@@ -420,18 +390,9 @@ function KnowledgeCard({
     >
       <div className="flex items-start gap-3">
         <div className={cn(
-          "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
-          `bg-${config.color}-500/10`
+          "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800"
         )}>
-          <Icon size={20} className={`text-${config.color}-400`} style={{
-            color: config.color === 'purple' ? '#a78bfa' :
-                   config.color === 'blue' ? '#60a5fa' :
-                   config.color === 'green' ? '#34d399' :
-                   config.color === 'orange' ? '#fbbf24' :
-                   config.color === 'pink' ? '#f472b6' :
-                   config.color === 'red' ? '#f87171' :
-                   '#22d3ee'
-          }}/>
+          <Icon size={20} className={colorClasses[config.color] || 'text-gray-400'} />
         </div>
         
         <div className="flex-1 min-w-0">
@@ -440,6 +401,12 @@ function KnowledgeCard({
             <ChevronRight size={16} className="text-gray-600 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
           
+          {item.metadata?.author && (
+            <p className="text-xs text-gray-500 mt-1">
+              作者: {item.metadata.author}
+            </p>
+          )}
+
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">
             {item.content.substring(0, 80)}...
           </p>
@@ -448,10 +415,11 @@ function KnowledgeCard({
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
               {config.label}
             </span>
-            <div className="flex items-center gap-1 text-xs text-gray-600">
-              <Clock size={12} />
-              {new Date(item.updatedAt).toLocaleDateString('zh-CN')}
-            </div>
+            {item.metadata?.wordCount && (
+              <span className="text-xs text-gray-600">
+                {item.metadata.wordCount.toLocaleString()} 字
+              </span>
+            )}
           </div>
           
           {/* 标签 */}
@@ -469,8 +437,12 @@ function KnowledgeCard({
 }
 
 /** 详情面板 */
-function KnowledgeDetail({ item, onBack }: { item: KnowledgeItem; onBack: () => void }) {
-  const config = CATEGORY_CONFIG[item.category];
+function KnowledgeDetail({ item, onBack, onDelete }: { 
+  item: KnowledgeItem; 
+  onBack: () => void;
+  onDelete: () => void;
+}) {
+  const config = TYPE_CONFIG[item.type];
   const Icon = config.icon;
 
   return (
@@ -479,35 +451,58 @@ function KnowledgeDetail({ item, onBack }: { item: KnowledgeItem; onBack: () => 
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <Icon size={24} className={`text-${config.color}-400`} style={{
-              color: config.color === 'purple' ? '#a78bfa' :
-                     config.color === 'blue' ? '#60a5fa' :
-                     config.color === 'green' ? '#34d399' :
-                     config.color === 'orange' ? '#fbbf24' :
-                     config.color === 'pink' ? '#f472b6' :
-                     config.color === 'red' ? '#f87171' :
-                     '#22d3ee'
-            }}/>
+            <Icon size={24} className={`text-${config.color}-400`} />
             <h2 className="text-2xl font-bold text-white">{item.title}</h2>
           </div>
           <div className="flex items-center gap-3 text-sm text-gray-500">
             <span className="px-2 py-1 rounded-md bg-gray-800 text-gray-400">
               {config.label}
             </span>
+            {item.metadata?.author && <span>作者: {item.metadata.author}</span>}
+            {item.metadata?.source && <span>来源: {item.metadata.source}</span>}
             <span>创建于 {new Date(item.createdAt).toLocaleString('zh-CN')}</span>
-            <span>更新于 {new Date(item.updatedAt).toLocaleString('zh-CN')}</span>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors">
-            <Edit3 size={18} />
-          </button>
-          <button className="p-2 rounded-lg hover:bg-gray-800 text-red-400 hover:text-red-300 transition-colors">
+          <button 
+            onClick={onDelete}
+            className="p-2 rounded-lg hover:bg-gray-800 text-red-400 hover:text-red-300 transition-colors"
+          >
             <Trash2 size={18} />
           </button>
         </div>
       </div>
+
+      {/* 元数据 */}
+      {item.metadata && (
+        <div className="glass-panel p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {item.metadata.wordCount && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">字数</div>
+              <div className="text-lg font-bold text-white">{item.metadata.wordCount.toLocaleString()}</div>
+            </div>
+          )}
+          {item.metadata.chapterCount && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">章节数</div>
+              <div className="text-lg font-bold text-white">{item.metadata.chapterCount}</div>
+            </div>
+          )}
+          {item.metadata.category && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">分类</div>
+              <div className="text-lg font-bold text-white">{item.metadata.category}</div>
+            </div>
+          )}
+          {item.metadata.rating && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">评分</div>
+              <div className="text-lg font-bold text-yellow-400">⭐ {item.metadata.rating}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 标签 */}
       <div className="flex flex-wrap gap-2">
@@ -527,21 +522,203 @@ function KnowledgeDetail({ item, onBack }: { item: KnowledgeItem; onBack: () => 
           </pre>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* 操作按钮 */}
-      <div className="flex items-center gap-3 pt-4 border-t border-gray-800">
-        <button className="btn-secondary flex items-center gap-2">
-          <Download size={16} />
-          导出
-        </button>
-        <button className="btn-secondary flex items-center gap-2">
-          <Upload size={16} />
-          导入
-        </button>
-        <button className="btn-secondary flex items-center gap-2 ml-auto">
-          <Edit3 size={16} />
-          编辑
-        </button>
+/** 上传弹窗 */
+function UploadModal({ 
+  onClose, 
+  onUpload, 
+  uploading, 
+  uploadStatus 
+}: { 
+  onClose: () => void; 
+  onUpload: (file: File, platform: string) => void;
+  uploading: boolean;
+  uploadStatus: { success: boolean; message: string } | null;
+}) {
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [platform, setPlatform] = useState<'qidian' | 'fanqie'>('fanqie');
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.endsWith('.json')) {
+        setSelectedFile(file);
+      } else {
+        alert('只支持 JSON 文件');
+      }
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!selectedFile) return;
+    onUpload(selectedFile, platform);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white">上传小说 JSON</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* 平台选择 */}
+        <div className="mb-4">
+          <label className="block text-sm text-gray-400 mb-2">选择平台</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPlatform('fanqie')}
+              className={`flex-1 py-2 rounded-lg border transition-all ${
+                platform === 'fanqie'
+                  ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              番茄小说
+            </button>
+            <button
+              onClick={() => setPlatform('qidian')}
+              className={`flex-1 py-2 rounded-lg border transition-all ${
+                platform === 'qidian'
+                  ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              起点中文网
+            </button>
+          </div>
+        </div>
+
+        {/* 文件上传区域 */}
+        <div
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={cn(
+            "border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer",
+            dragActive
+              ? "border-cyan-500 bg-cyan-500/10"
+              : "border-gray-700 hover:border-gray-600"
+          )}
+          onClick={() => document.getElementById('fileInput')?.click()}
+        >
+          <input
+            id="fileInput"
+            type="file"
+            accept=".json"
+            onChange={handleFileInput}
+            className="hidden"
+          />
+          
+          {selectedFile ? (
+            <div>
+              <CheckCircle size={48} className="mx-auto text-green-400 mb-4" />
+              <p className="text-white font-medium">{selectedFile.name}</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {(selectedFile.size / 1024).toFixed(2)} KB
+              </p>
+            </div>
+          ) : (
+            <div>
+              <Upload size={48} className="mx-auto text-gray-600 mb-4" />
+              <p className="text-gray-400">拖拽 JSON 文件到此处</p>
+              <p className="text-sm text-gray-600 mt-1">或点击选择文件</p>
+            </div>
+          )}
+        </div>
+
+        {/* 上传状态 */}
+        {uploadStatus && (
+          <div className={cn(
+            "mt-4 p-3 rounded-lg flex items-center gap-2",
+            uploadStatus.success
+              ? "bg-green-500/10 border border-green-500/50 text-green-400"
+              : "bg-red-500/10 border border-red-500/50 text-red-400"
+          )}>
+            {uploadStatus.success ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+            <span className="text-sm">{uploadStatus.message}</span>
+          </div>
+        )}
+
+        {/* 操作按钮 */}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-secondary"
+            disabled={uploading}
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="flex-1 btn-primary flex items-center justify-center gap-2"
+            disabled={!selectedFile || uploading}
+          >
+            {uploading ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                上传中...
+              </>
+            ) : (
+              <>
+                <Upload size={18} />
+                上传
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* JSON 格式说明 */}
+        <div className="mt-4 p-3 bg-gray-800/50 rounded-lg">
+          <p className="text-xs text-gray-500 mb-2">JSON 格式要求：</p>
+          <pre className="text-xs text-gray-400 overflow-x-auto">
+{`{
+  "title": "书名",
+  "author": "作者",
+  "category": "分类",
+  "tags": ["标签1", "标签2"],
+  "wordCount": 100000,
+  "chapters": [
+    {
+      "chapterNumber": 1,
+      "title": "第一章",
+      "content": "章节内容..."
+    }
+  ],
+  "metadata": {
+    "rating": 9.5,
+    "popularity": 1000000
+  }
+}`}
+          </pre>
+        </div>
       </div>
     </div>
   );

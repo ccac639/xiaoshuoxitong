@@ -1,22 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChapterView } from '@/components/chapter/ChapterView';
+import { ImportedReader } from '@/components/chapter/ImportedReader';
 import { MOCK_SNAPSHOT } from '@/lib/mockWorldState';
 import { AuditResult } from '@/server/audit/fanqieSkill';
 
 type FlowStep = 'idle' | 'generating' | 'audit' | 'confirmed' | 'rejected';
 
 /**
- * Chapter Page - 章节生成主页面（集成审计流程）
- * 
- * 新流程：
- * 1. 生成章节
- * 2. 🔥 审计章节（fanqie-novel-skill）
- * 3. 用户确认/修改/拒绝
- * 4. 更新世界状态和记忆
+ * Chapter Page - 章节主页面
+ *  - 带 ?novel=<id> 时进入「OCR 导入阅读」模式（只读真实章节）
+ *  - 否则进入「AI 章节生成」模式（审计流程）
  */
 export default function ChapterPage() {
+  const [novelId, setNovelId] = useState<string | null>(null);
+
+  // 从 URL 读取 ?novel= 参数（避免 useSearchParams 的 Suspense 要求）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('novel');
+    if (id) setNovelId(id);
+  }, []);
+
+  if (novelId) {
+    return <ImportedReader novelId={novelId} />;
+  }
+
+  return <GenerateMode />;
+}
+
+function GenerateMode() {
   const [chapterData, setChapterData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [chapterNumber, setChapterNumber] = useState(1);

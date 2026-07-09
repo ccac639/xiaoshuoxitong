@@ -74,7 +74,7 @@ export function ChapterView({
           ) : (
             <>
               <BookOpen size={18} />
-              生成下一章
+              开始创作
             </>
           )}
         </button>
@@ -200,7 +200,7 @@ export function ChapterView({
               暂无章节
             </h3>
             <p className="text-gray-500 mb-6">
-              点击「生成下一章」开始创作
+              点击「开始创作」生成你的下一章
             </p>
             <button
               onClick={onGenerate}

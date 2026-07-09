@@ -10,6 +10,9 @@ import { storyMemoryManager } from '@/server/memory/storyMemory';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('[Story Memory API] globalThis:', globalThis);
+    console.log('[Story Memory API] __storyMemories:', (globalThis as any).__storyMemories);
+    
     const { searchParams } = new URL(request.url);
     const storyId = searchParams.get('storyId') || 'default';
     const action = searchParams.get('action') || 'all';

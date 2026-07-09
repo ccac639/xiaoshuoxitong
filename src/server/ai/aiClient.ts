@@ -4,6 +4,11 @@
  * 支持通过 OpenAI 兼容协议调用多个 AI 平台：
  *   - SiliconFlow（DeepSeek-V4-Flash 等）
  *   - 智谱 BigModel（GLM-4.7-Flash 等）
+ *   - OpenRouter（聚合多厂商，含 tencent/hy3:free、qwen3 系列免费国内模型）
+ *
+ * 重要：GLM-4.7-Flash / tencent/hy3 等推理模型默认开启思考链，会把整个
+ * max_tokens 预算花在 reasoning 上导致 content 为空。本客户端默认关闭思考
+ * （thinking:false），按 provider 注入对应关闭参数，保证正文/JSON 稳定产出。
  *
  * 由 ModelRouter 根据 ModelRole 选择模型，客户端根据 config.provider 自动路由到对应 endpoint。
  *
@@ -12,6 +17,8 @@
  *   SILICONFLOW_BASE_URL   默认 https://api.siliconflow.cn/v1
  *   ZHIPU_API_KEY          智谱开放平台获取的 API Key
  *   ZHIPU_BASE_URL         默认 https://open.bigmodel.cn/api/paas/v4
+ *   OPENROUTER_API_KEY     OpenRouter 控制台获取的 API Key
+ *   OPENROUTER_BASE_URL    默认 https://openrouter.ai/api/v1
  */
 
 import { ModelRouter, ModelRole, ModelConfig } from '../generation/modelRouter';
@@ -35,6 +42,11 @@ const PROVIDERS: Record<string, ProviderConfig> = {
     apiKey: process.env.ZHIPU_API_KEY || '',
     baseUrl: (process.env.ZHIPU_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4').replace(/\/+$/, ''),
   },
+  openrouter: {
+    name: 'OpenRouter',
+    apiKey: process.env.OPENROUTER_API_KEY || '',
+    baseUrl: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
+  },
 };
 
 export type ChatRole = 'system' | 'user' | 'assistant';
@@ -50,6 +62,12 @@ export interface ChatOptions {
   /** 返回前剥离 ```json 围栏，输出纯 JSON 文本（写作流各阶段要求 JSON） */
   asJson?: boolean;
   timeoutMs?: number;
+  /**
+   * 是否开启模型思考/推理链。
+   * - 默认 false：关闭思考（推理模型如 GLM-4.7-Flash / tencent-hy3 关闭后才会产出正文，否则整段 token 被思考链吃掉，content 为空）
+   * - 设为 true 可打开思考（适合审计/长线一致性等分析型任务，但会消耗更多 token 且需更长超时）
+   */
+  thinking?: boolean;
 }
 
 export interface ChatResult {
@@ -121,19 +139,33 @@ export class AIClient {
 
     let data: any;
     try {
+      // 构建请求体；推理模型默认关闭思考，否则 content 为空
+      const body: Record<string, any> = {
+        model: cfg.model,
+        messages,
+        temperature: opts.temperature ?? 0.7,
+        max_tokens: opts.maxTokens ?? cfg.maxTokens,
+        stream: false,
+      };
+
+      // 按 provider 注入「关闭思考」参数（仅当 thinking 未显式开启时）
+      if (opts.thinking !== true) {
+        if (cfg.provider === 'zhipu') {
+          // 智谱 GLM 系列：thinking.type=disabled 才会直出正文
+          body.thinking = { type: 'disabled' };
+        } else if (cfg.provider === 'openrouter') {
+          // OpenRouter 上的推理模型（如 tencent/hy3）通过 chat_template_kwargs 关思考
+          body.chat_template_kwargs = { enable_thinking: false };
+        }
+      }
+
       const res = await fetch(`${provider.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${provider.apiKey}`,
         },
-        body: JSON.stringify({
-          model: cfg.model,
-          messages,
-          temperature: opts.temperature ?? 0.7,
-          max_tokens: opts.maxTokens ?? cfg.maxTokens,
-          stream: false,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 

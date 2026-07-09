@@ -35,6 +35,39 @@ const MODEL_REGISTRY: Record<string, ModelConfig> = {
     costPer1kOutput: 0,      // 免费
   },
 
+  // ============ OpenRouter 免费国内模型（OpenAI 兼容，baseURL: openrouter.ai/api/v1）============
+  // 以下模型在 OpenRouter 上均标注 free（prompt/completion 计费为 0）
+  // tencent/hy3：腾讯混元 Hy3，262K 上下文，推理与生成能力强，适合长线一致性/正文
+  'tencent-hy3-free': {
+    provider: 'openrouter',
+    model: 'tencent/hy3:free',
+    role: 'longctx',
+    maxTokens: 8192,
+    contextWindow: 262_144,
+    costPer1kInput: 0,       // 免费
+    costPer1kOutput: 0,      // 免费
+  },
+  // qwen/qwen3-next-80b-a3b-instruct：阿里通义千问，262K 上下文，通用指令遵循好，适合清洗/审计
+  'qwen3-next-80b-free': {
+    provider: 'openrouter',
+    model: 'qwen/qwen3-next-80b-a3b-instruct:free',
+    role: 'cheap',
+    maxTokens: 8192,
+    contextWindow: 262_144,
+    costPer1kInput: 0,       // 免费
+    costPer1kOutput: 0,      // 免费
+  },
+  // qwen/qwen3-coder：阿里通义千问 Coder，1M 上下文，超长上下文适合读大纲/长线一致性
+  'qwen3-coder-free': {
+    provider: 'openrouter',
+    model: 'qwen/qwen3-coder:free',
+    role: 'longctx',
+    maxTokens: 8192,
+    contextWindow: 1_048_576,
+    costPer1kInput: 0,       // 免费
+    costPer1kOutput: 0,      // 免费
+  },
+
   // ============ SiliconFlow DeepSeek 系列（OpenAI 兼容，baseURL: api.siliconflow.cn/v1）============
   // DeepSeek-V4-Flash：个人版主力备选
   'deepseek-v4-flash': {
@@ -147,12 +180,13 @@ export class ModelRouter {
       return MODEL_REGISTRY[preferModel];
     }
 
-    // 默认选择（个人版优先使用智谱 GLM-4.7-Flash 免费模型）
+    // 默认选择（个人版优先使用免费国内模型：智谱 GLM-4.7-Flash 稳定直出 + OpenRouter 腾讯混元辅助）
+    // 注：OpenRouter 上 qwen3 系列免费模型上游常限流，故不作为默认；tencent/hy3 经关闭思考后可稳定产出
     const defaults: Record<ModelRole, string> = {
-      cheap: 'glm-4.7-flash',
-      longctx: 'glm-4.7-flash',
-      creative: 'glm-4.7-flash',
-      auditor: 'glm-4.7-flash',
+      cheap: 'glm-4.7-flash',          // 智谱免费，清洗/摘要（稳定直出）
+      longctx: 'tencent-hy3-free',     // OpenRouter 腾讯混元免费，262K（短分析输出可用）
+      creative: 'glm-4.7-flash',       // 智谱免费，正文初稿（推理模型长文易空，故用 GLM）
+      auditor: 'glm-4.7-flash',        // 智谱免费，独立审查
     };
 
     return MODEL_REGISTRY[defaults[role]];

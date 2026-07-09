@@ -23,6 +23,18 @@ export interface ModelConfig {
 // ==================== 模型配置 ====================
 
 const MODEL_REGISTRY: Record<string, ModelConfig> = {
+  // ============ 个人版主力模型：SiliconFlow DeepSeek-V4-Flash ============
+  // 通过 OpenAI 兼容协议调用，作为 cheap/longctx/creative/auditor 的统一模型。
+  'deepseek-v4-flash': {
+    provider: 'siliconflow',
+    model: 'deepseek-ai/DeepSeek-V4-Flash',
+    role: 'cheap',
+    maxTokens: 8192,
+    contextWindow: 128000,
+    costPer1kInput: 0.0001, // TODO: 以 SiliconFlow 控制台实际报价校准
+    costPer1kOutput: 0.0001,
+  },
+
   // cheap - 摘要/清洗/标签
   'deepseek-v3': {
     provider: 'deepseek',
@@ -123,12 +135,12 @@ export class ModelRouter {
       return MODEL_REGISTRY[preferModel];
     }
 
-    // 默认选择
+    // 默认选择（个人版统一使用 SiliconFlow DeepSeek-V4-Flash）
     const defaults: Record<ModelRole, string> = {
-      cheap: 'deepseek-v3',
-      longctx: 'claude-sonnet',
-      creative: 'deepseek-v3-creative',
-      auditor: 'gpt-4o-auditor',
+      cheap: 'deepseek-v4-flash',
+      longctx: 'deepseek-v4-flash',
+      creative: 'deepseek-v4-flash',
+      auditor: 'deepseek-v4-flash',
     };
 
     return MODEL_REGISTRY[defaults[role]];
@@ -138,7 +150,10 @@ export class ModelRouter {
    * 计算 Token 成本
    */
   calcCost(modelId: string, inputTokens: number, outputTokens: number): number {
-    const config = MODEL_REGISTRY[modelId];
+    // 同时支持短名（'deepseek-v4-flash'）与模型全名（'deepseek-ai/DeepSeek-V4-Flash'）
+    const config =
+      MODEL_REGISTRY[modelId] ||
+      Object.values(MODEL_REGISTRY).find((c) => c.model === modelId);
     if (!config) return 0;
 
     return (

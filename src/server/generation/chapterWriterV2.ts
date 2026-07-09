@@ -15,6 +15,7 @@ import { getStoryMemory, ChapterSummary } from '@/server/memory/storyMemoryV2';
 import { getWorldStateManager, EventEffect } from '@/server/world/stateManagerV2';
 import { skillLibraryV2 } from '@/server/skills/skillLibraryV2';
 import { ModelRouter, CostTracker, ModelRole } from '@/server/generation/modelRouter';
+import { getAIClient } from '@/server/ai/aiClient';
 import { getProfile } from '@/server/platform/profiles';
 
 // ==================== 流水线状态 ====================
@@ -79,17 +80,32 @@ export interface ChapterGenerationResult {
  * TODO: 替换为真实 AI API（如 OpenAI / Claude / 本地模型）
  */
 async function callModel(prompt: string, modelType: 'cheap' | 'creative' | 'longctx' | 'auditor'): Promise<string> {
-  // TODO: 替换为真实 AI API
-  // 示例替换：
-  //   const response = await fetch(process.env.AI_API_ENDPOINT!, {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.AI_API_KEY}` },
-  //     body: JSON.stringify({ model: getModelName(modelType), messages: [{ role: 'user', content: prompt }] }),
-  //   });
-  //   const data = await response.json();
-  //   return data.choices[0].message.content;
+  // 优先调用真实 AI（SiliconFlow / DeepSeek-V4-Flash）
+  const client = getAIClient();
+  if (client.isConfigured()) {
+    try {
+      const result = await client.chat(
+        modelType,
+        [{ role: 'user', content: prompt }],
+        {
+          // 正文阶段不剥离 JSON 围栏（本身非 JSON）；其余阶段需纯 JSON
+          asJson: modelType !== 'creative',
+          temperature: modelType === 'auditor' ? 0.2 : modelType === 'creative' ? 0.85 : 0.5,
+          maxTokens: modelType === 'creative' ? 3500 : 1500,
+        }
+      );
+      console.log(
+        `[AI] ${modelType} ✓ model=${result.model} tokens=${result.totalTokens} cost=$${result.cost.toFixed(5)} (${result.durationMs}ms)`
+      );
+      return result.content;
+    } catch (err: any) {
+      console.warn(`[AI] ${modelType} 真实调用失败，降级为 mock：${err?.message || err}`);
+    }
+  } else {
+    console.warn('[AI] 未检测到 SILICONFLOW_API_KEY，使用 mock 响应（请在 .env.local 配置）');
+  }
 
-  // 当前 mock 实现：根据 modelType 返回不同的模拟响应
+  // ============ 以下为 mock 降级实现（配置缺失或调用异常时启用） ============
   switch (modelType) {
     case 'auditor':
       // 模拟审查评分 JSON

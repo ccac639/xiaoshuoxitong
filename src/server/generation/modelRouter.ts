@@ -23,8 +23,20 @@ export interface ModelConfig {
 // ==================== 模型配置 ====================
 
 const MODEL_REGISTRY: Record<string, ModelConfig> = {
-  // ============ 个人版主力模型：SiliconFlow DeepSeek-V4-Flash ============
-  // 通过 OpenAI 兼容协议调用，作为 cheap/longctx/creative/auditor 的统一模型。
+  // ============ 智谱 GLM 系列（OpenAI 兼容，baseURL: open.bigmodel.cn/api/paas/v4）============
+  // GLM-4.7-Flash：免费模型，200K 上下文，适合个人版全角色统一使用
+  'glm-4.7-flash': {
+    provider: 'zhipu',
+    model: 'glm-4.7-flash',
+    role: 'cheap',
+    maxTokens: 8192,
+    contextWindow: 200_000,
+    costPer1kInput: 0,       // 免费
+    costPer1kOutput: 0,      // 免费
+  },
+
+  // ============ SiliconFlow DeepSeek 系列（OpenAI 兼容，baseURL: api.siliconflow.cn/v1）============
+  // DeepSeek-V4-Flash：个人版主力备选
   'deepseek-v4-flash': {
     provider: 'siliconflow',
     model: 'deepseek-ai/DeepSeek-V4-Flash',
@@ -135,12 +147,12 @@ export class ModelRouter {
       return MODEL_REGISTRY[preferModel];
     }
 
-    // 默认选择（个人版统一使用 SiliconFlow DeepSeek-V4-Flash）
+    // 默认选择（个人版优先使用智谱 GLM-4.7-Flash 免费模型）
     const defaults: Record<ModelRole, string> = {
-      cheap: 'deepseek-v4-flash',
-      longctx: 'deepseek-v4-flash',
-      creative: 'deepseek-v4-flash',
-      auditor: 'deepseek-v4-flash',
+      cheap: 'glm-4.7-flash',
+      longctx: 'glm-4.7-flash',
+      creative: 'glm-4.7-flash',
+      auditor: 'glm-4.7-flash',
     };
 
     return MODEL_REGISTRY[defaults[role]];

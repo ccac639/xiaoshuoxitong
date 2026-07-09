@@ -82,7 +82,7 @@ export interface ChapterGenerationResult {
 async function callModel(prompt: string, modelType: 'cheap' | 'creative' | 'longctx' | 'auditor'): Promise<string> {
   // 优先调用真实 AI（SiliconFlow / DeepSeek-V4-Flash）
   const client = getAIClient();
-  if (client.isConfigured()) {
+  if (client.hasAnyConfigured()) {
     try {
       const result = await client.chat(
         modelType,

@@ -11,6 +11,7 @@
  *   glm / glm47 / zhipu                             → glm-4.7-flash（智谱，免费）
  *   orHy3 / hy3 / or                                → tencent/hy3:free（OpenRouter，免费）
  *   orqwen3 / qwen                                  → qwen/qwen3-coder:free（OpenRouter，免费）
+ *   moma / momav4 / momaflash                       → deepseek-v4-flash（移动云 MoMA，免费 2500万额度）
  *
  * 入参（OpenAI 兼容风格）：
  *   model     : 模型别名或完整模型名（路径已带则忽略）

@@ -19,9 +19,12 @@
  *   ZHIPU_BASE_URL         默认 https://open.bigmodel.cn/api/paas/v4
  *   OPENROUTER_API_KEY     OpenRouter 控制台获取的 API Key
  *   OPENROUTER_BASE_URL    默认 https://openrouter.ai/api/v1
+ *   MOMA_API_KEY           移动云 MoMA / MaaS 控制台获取的 API Key（赠送 2500万 tokens 额度）
+ *   MOMA_BASE_URL          默认 https://zhenze-huhehaote.cmecloud.cn/v1
  */
 
 import { ModelRouter, ModelRole, ModelConfig } from '../generation/modelRouter';
+import { nativePostJson } from '../http/nativeFetch';
 
 // ==================== Provider 配置 ====================
 
@@ -46,6 +49,11 @@ const PROVIDERS: Record<string, ProviderConfig> = {
     name: 'OpenRouter',
     apiKey: process.env.OPENROUTER_API_KEY || '',
     baseUrl: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
+  },
+  moma: {
+    name: '移动云 MoMA',
+    apiKey: process.env.MOMA_API_KEY || '',
+    baseUrl: (process.env.MOMA_BASE_URL || 'https://zhenze-huhehaote.cmecloud.cn/v1').replace(/\/+$/, ''),
   },
 };
 
@@ -164,7 +172,13 @@ export class AIClient {
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 300_000);
     const t0 = Date.now();
 
-    let data: any;
+    // 移动云 MoMA 网关按需加载模型：冷启动（长时间无请求后）首次调用可能返回 404，
+    // 触发后端加载，加载完成后即正常。故对 moma 的 404 做有限重试，等待模型就绪。
+    const isMoma = cfg.provider === 'moma';
+    const maxRetries = isMoma ? 3 : 0;
+    let lastErr: any = null;
+
+    let data: any = null;
     try {
       // 构建请求体；推理模型默认关闭思考，否则 content 为空
       const body: Record<string, any> = {
@@ -186,21 +200,34 @@ export class AIClient {
         }
       }
 
-      const res = await fetch(`${provider.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 4000)); // 等待模型冷启动加载
+        }
+        // 使用原生 HTTP 客户端（绕过 Next fetch patch，规避 gzip 响应体被损坏）
+        const nativeRes = await nativePostJson(
+          `${provider.baseUrl}/chat/completions`,
+          {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${provider.apiKey}`,
+          },
+          JSON.stringify(body),
+          { timeoutMs: opts.timeoutMs ?? 300_000, signal: controller.signal }
+        );
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        throw new Error(`${provider.name} HTTP ${res.status}: ${errText.slice(0, 400)}`);
+        // 移动云冷启动：404 时重试而非立即报错
+        if (nativeRes.status === 404 && isMoma && attempt < maxRetries) {
+          lastErr = new Error(`${provider.name} 模型冷启动中（404），第 ${attempt + 1} 次重试…`);
+          continue;
+        }
+        if (nativeRes.status < 200 || nativeRes.status >= 300) {
+          throw new Error(
+            `${provider.name} HTTP ${nativeRes.status}: ${String(nativeRes.body).slice(0, 400)}`
+          );
+        }
+        data = JSON.parse(nativeRes.body);
+        break;
       }
-      data = await res.json();
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         throw new Error(`${provider.name} 请求超时（>${Math.round((opts.timeoutMs ?? 300_000) / 1000)}s）`);
@@ -210,13 +237,17 @@ export class AIClient {
       clearTimeout(timer);
     }
 
+    if (data === null) {
+      throw lastErr ?? new Error(`${provider.name} 调用失败（无响应）`);
+    }
+
     let content: string = data?.choices?.[0]?.message?.content ?? '';
     if (opts.asJson) content = stripJsonFences(content);
 
     const usage = data?.usage ?? {};
     const promptTokens = Number(usage.prompt_tokens ?? 0);
     const completionTokens = Number(usage.completion_tokens ?? 0);
-    const cost = this.router.calcCost(cfg.model, promptTokens, completionTokens);
+    const cost = this.router.calcCost(cfg.id ?? cfg.model, promptTokens, completionTokens);
 
     return {
       content,

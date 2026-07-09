@@ -18,6 +18,7 @@ export interface ModelConfig {
   contextWindow: number;
   costPer1kInput: number;   // USD
   costPer1kOutput: number;  // USD
+  id?: string;              // 注册表 key（由下方循环注入），成本计算优先用它精确命中
 }
 
 // ==================== 模型配置 ====================
@@ -78,6 +79,19 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     contextWindow: 128000,
     costPer1kInput: 0.0001, // TODO: 以 SiliconFlow 控制台实际报价校准
     costPer1kOutput: 0.0001,
+  },
+
+  // ============ 移动云 MoMA / MaaS（OpenAI 兼容，baseURL: zhenze-huhehaote.cmecloud.cn/v1）============
+  // DeepSeek-V4-Flash：移动云赠送 2500万 tokens 体验额度（免费），标准 OpenAI 兼容 Bearer 调用。
+  // 网关按需加载模型，冷启动首次请求可能 404（AIClient 已对 moma 做 404 重试）。
+  'moma-deepseek-v4-flash': {
+    provider: 'moma',
+    model: 'deepseek-v4-flash',
+    role: 'creative',
+    maxTokens: 8192,
+    contextWindow: 128000,
+    costPer1kInput: 0,   // 免费额度
+    costPer1kOutput: 0,  // 免费额度
   },
   // DeepSeek-V4-Pro：SiliconFlow 上的 pro 档（质量更高，付费）
   'deepseek-v4-pro': {
@@ -170,6 +184,12 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     costPer1kOutput: 0.01,
   },
 };
+
+// 注入注册表 key 作为 id，供成本计算精确命中，
+// 避免 model 名与 key 重名导致的歧义（例：moma 的 model 名 deepseek-v4-flash 与 siliconflow 的 key 冲突）
+for (const [id, cfg] of Object.entries(MODEL_REGISTRY)) {
+  cfg.id = id;
+}
 
 // ==================== 模型路由器 ====================
 
@@ -340,6 +360,13 @@ export const MODEL_ALIASES: Record<string, string> = {
   'qwen3coder': 'qwen3-coder-free',
   'orqwen3next': 'qwen3-next-80b-free',
   'qwen3next': 'qwen3-next-80b-free',
+
+  // ---- 移动云 MoMA（免费 2500万 tokens 额度）----
+  'moma': 'moma-deepseek-v4-flash',          // 核心别名
+  'momav4': 'moma-deepseek-v4-flash',
+  'momaflash': 'moma-deepseek-v4-flash',
+  'momadeepseek': 'moma-deepseek-v4-flash',
+  'momads': 'moma-deepseek-v4-flash',
 };
 
 function normalizeAlias(input: string): string {

@@ -2,6 +2,7 @@ import { handleXiaoshuo } from '../../../server/generation/xiaoshuoProxy';
 import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // POST /xiaoshuo/SFV4-Flash  （模型别名写在路径里）
 export async function POST(

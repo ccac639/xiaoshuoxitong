@@ -3,6 +3,7 @@ import { listAliases } from '../../server/generation/modelRouter';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // POST /xiaoshuo/  body: {"model":"orHy3","prompt":"..."} 或 {"model":"glm","messages":[...]}
 export async function POST(req: NextRequest) {

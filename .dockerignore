@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+backend
+data
+.workbuddy
+.env.local
+.env

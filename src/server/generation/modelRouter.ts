@@ -22,7 +22,7 @@ export interface ModelConfig {
 
 // ==================== 模型配置 ====================
 
-const MODEL_REGISTRY: Record<string, ModelConfig> = {
+export const MODEL_REGISTRY: Record<string, ModelConfig> = {
   // ============ 智谱 GLM 系列（OpenAI 兼容，baseURL: open.bigmodel.cn/api/paas/v4）============
   // GLM-4.7-Flash：免费模型，200K 上下文，适合个人版全角色统一使用
   'glm-4.7-flash': {
@@ -69,7 +69,7 @@ const MODEL_REGISTRY: Record<string, ModelConfig> = {
   },
 
   // ============ SiliconFlow DeepSeek 系列（OpenAI 兼容，baseURL: api.siliconflow.cn/v1）============
-  // DeepSeek-V4-Flash：个人版主力备选
+  // DeepSeek-V4-Flash：个人版主力备选（免费档已验证可用）
   'deepseek-v4-flash': {
     provider: 'siliconflow',
     model: 'deepseek-ai/DeepSeek-V4-Flash',
@@ -78,6 +78,16 @@ const MODEL_REGISTRY: Record<string, ModelConfig> = {
     contextWindow: 128000,
     costPer1kInput: 0.0001, // TODO: 以 SiliconFlow 控制台实际报价校准
     costPer1kOutput: 0.0001,
+  },
+  // DeepSeek-V4-Pro：SiliconFlow 上的 pro 档（质量更高，付费）
+  'deepseek-v4-pro': {
+    provider: 'siliconflow',
+    model: 'deepseek-ai/DeepSeek-V4-Pro',
+    role: 'creative',
+    maxTokens: 8192,
+    contextWindow: 128000,
+    costPer1kInput: 0.0005, // TODO: 以 SiliconFlow 控制台实际报价校准
+    costPer1kOutput: 0.0015,
   },
 
   // cheap - 摘要/清洗/标签
@@ -193,6 +203,13 @@ export class ModelRouter {
   }
 
   /**
+   * 按注册表 id 直接取模型配置（统一接口 /api/xiaoshuo 用）
+   */
+  getModel(modelId: string): ModelConfig | undefined {
+    return MODEL_REGISTRY[modelId];
+  }
+
+  /**
    * 计算 Token 成本
    */
   calcCost(modelId: string, inputTokens: number, outputTokens: number): number {
@@ -284,4 +301,71 @@ export class CostTracker {
   clear(): void {
     this.records = [];
   }
+}
+
+// ==================== 统一接口别名（/api/xiaoshuo 用）====================
+// 用户只需记短别名，即可通过统一接口调用任意平台模型。
+// 输入会被统一归一化（小写 + 去除空格/连字符/下划线/点/斜杠）后匹配，
+// 故 SFV4-Flash / sfv4flash / deepseekv4flash 等价；亦支持传完整模型名/注册表 id。
+
+export const MODEL_ALIASES: Record<string, string> = {
+  // ---- SiliconFlow / DeepSeek ----
+  'sfv4flash': 'deepseek-v4-flash',
+  'deepseekv4flash': 'deepseek-v4-flash',
+  'dsv4flash': 'deepseek-v4-flash',
+  'sf': 'deepseek-v4-flash',                 // siliconflow 简写 → flash
+  'siliconflow': 'deepseek-v4-flash',
+  'siliconflowflash': 'deepseek-v4-flash',
+  'v4flash': 'deepseek-v4-flash',
+  'sfv4pro': 'deepseek-v4-pro',
+  'deepseekv4pro': 'deepseek-v4-pro',
+  'siliconflowpro': 'deepseek-v4-pro',
+  'v4pro': 'deepseek-v4-pro',
+  'dsv4pro': 'deepseek-v4-pro',
+
+  // ---- 智谱 GLM ----
+  'glm': 'glm-4.7-flash',
+  'glm47': 'glm-4.7-flash',
+  'glm47flash': 'glm-4.7-flash',
+  'zhipu': 'glm-4.7-flash',
+  'zhipuglm': 'glm-4.7-flash',
+
+  // ---- OpenRouter 免费国内 ----
+  'orhy3': 'tencent-hy3-free',
+  'hy3': 'tencent-hy3-free',
+  'or': 'tencent-hy3-free',                  // 仅 "or" → 默认 OpenRouter 免费（腾讯混元）
+  'orqwen3': 'qwen3-coder-free',
+  'qwen': 'qwen3-coder-free',                // 用户指定：qwen → OpenRouter qwen3-coder:free
+  'qwen3': 'qwen3-coder-free',
+  'qwen3coder': 'qwen3-coder-free',
+  'orqwen3next': 'qwen3-next-80b-free',
+  'qwen3next': 'qwen3-next-80b-free',
+};
+
+function normalizeAlias(input: string): string {
+  return input.trim().toLowerCase().replace(/[\s_\-./]+/g, '');
+}
+
+/**
+ * 将用户别名 / 模型全名 / 注册表 id 解析为注册表 key；解析失败返回 null
+ */
+export function resolveModelAlias(input: string): string | null {
+  if (!input) return null;
+  const key = normalizeAlias(input);
+  if (MODEL_REGISTRY[key]) return key;          // 直接命中注册表 key
+  if (MODEL_ALIASES[key]) return MODEL_ALIASES[key]; // 别名命中
+  for (const id of Object.keys(MODEL_REGISTRY)) {    // 归一化后命中（支持传完整模型名 / 注册表 id）
+    if (normalizeAlias(id) === key) return id;
+    if (normalizeAlias(MODEL_REGISTRY[id].model) === key) return id; // 支持传完整模型名（如 deepseek-ai/DeepSeek-V4-Flash）
+  }
+  return null;
+}
+
+/** 列出所有可用别名（供 /api/xiaoshuo GET 发现） */
+export function listAliases(): { alias: string; model: string; provider: string }[] {
+  return Object.entries(MODEL_ALIASES).map(([alias, modelId]) => ({
+    alias,
+    model: MODEL_REGISTRY[modelId]?.model ?? modelId,
+    provider: MODEL_REGISTRY[modelId]?.provider ?? '',
+  }));
 }

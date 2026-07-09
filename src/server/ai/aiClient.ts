@@ -111,7 +111,7 @@ export class AIClient {
   }
 
   /**
-   * 发起一次对话补全（自动路由到对应 Provider）
+   * 发起一次对话补全（按角色路由到对应模型）
    * @param modelType 模型角色（决定路由到哪个模型 / 成本）
    * @param messages 对话消息
    * @param opts 可选参数
@@ -121,7 +121,34 @@ export class AIClient {
     messages: ChatMessage[],
     opts: ChatOptions = {}
   ): Promise<ChatResult> {
-    const cfg: ModelConfig = this.router.selectModel(modelType);
+    const cfg = this.router.selectModel(modelType);
+    return this.callProvider(cfg, messages, opts);
+  }
+
+  /**
+   * 按注册表模型 id 直接调用（统一接口 /api/xiaoshuo 用）
+   * 不经过角色路由，精准指定要用的模型。
+   */
+  async chatWithModel(
+    modelId: string,
+    messages: ChatMessage[],
+    opts: ChatOptions = {}
+  ): Promise<ChatResult> {
+    const cfg = this.router.getModel(modelId);
+    if (!cfg) {
+      throw new Error(`未知模型 id: ${modelId}（可用模型见 /api/xiaoshuo GET）`);
+    }
+    return this.callProvider(cfg, messages, opts);
+  }
+
+  /**
+   * 实际发起 Provider 请求（chat / chatWithModel 共用）
+   */
+  private async callProvider(
+    cfg: ModelConfig,
+    messages: ChatMessage[],
+    opts: ChatOptions
+  ): Promise<ChatResult> {
     const provider = PROVIDERS[cfg.provider];
 
     if (!provider) {
